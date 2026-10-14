@@ -1,10 +1,18 @@
 name: market-dashboard -- build & deploy
 
-# Runs at 12:00 HKT (UTC+8) Mon-Fri -> cron uses UTC so use 04:00 UTC
 on:
   schedule:
     - cron: '0 4 * * 1-5'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'demo or live'
+        required: false
+        default: 'live'
+        type: choice
+        options:
+          - live
+          - demo
 
 permissions:
   contents: read
@@ -18,52 +26,43 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      docs-path: docs
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
-
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run market dashboard
-        # If your script writes to ./docs (default), this will generate files there.
         run: |
-          python -V
-          pwd
-          ls -la
-          python market_dashboard.py
-
-      - name: List docs dir
-        run: |
-          echo "docs/ contents:"
-          ls -la docs || true
+          if [ "${{ github.event.inputs.mode || 'live' }}" = "demo" ]; then
+            python market_dashboard.py --demo
+          else
+            python market_dashboard.py
+          fi
 
       - name: Upload Pages artifact
-        if: always()
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
+        id: deployment
+        uses: actions/deploy-pages@v4
