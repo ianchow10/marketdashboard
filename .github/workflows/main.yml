@@ -1,0 +1,69 @@
+name: market-dashboard -- build & deploy
+
+# Runs at 12:00 HKT (UTC+8) Mon-Fri -> cron uses UTC so use 04:00 UTC
+on:
+  schedule:
+    - cron: '0 4 * * 1-5'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: market-dashboard
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      docs-path: docs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Run market dashboard
+        # If your script writes to ./docs (default), this will generate files there.
+        run: |
+          python -V
+          pwd
+          ls -la
+          python market_dashboard.py
+
+      - name: List docs dir
+        run: |
+          echo "docs/ contents:"
+          ls -la docs || true
+
+      - name: Upload Pages artifact
+        if: always()
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ./docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
