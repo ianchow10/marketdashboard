@@ -1,9 +1,7 @@
-# market-dashboard -- build & deploy (upgraded actions)
 name: market-dashboard -- build & deploy
 
 on:
   schedule:
-    # 每週一到週五 12:00 HKT = 04:00 UTC
     - cron: '0 4 * * 1-5'
   workflow_dispatch:
     inputs:
@@ -28,50 +26,35 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo "no requirements.txt"; fi
+          pip install -r requirements.txt
 
-      - name: Run market dashboard (demo or live)
-        env:
-          # 可視需要在此設定環境變數，例如控制 yfinance chunk-size
-          # CHUNK_SIZE: 150
+      - name: Run market dashboard
         run: |
-          echo "Selected mode: ${{ github.event.inputs.mode }}"
-          if [ "${{ github.event.inputs.mode }}" = "demo" ]; then
+          if [ "${{ github.event.inputs.mode || 'demo' }}" = "demo" ]; then
             python market_dashboard.py --demo
           else
             python market_dashboard.py
           fi
 
-      - name: Show docs dir (for debugging)
+      - name: Show docs directory
         run: |
-          echo "docs/ contents (ls -la):"
+          ls -la
           ls -la docs || true
-          echo "Top-level files:"
-          ls -la || true
 
-      - name: Upload Pages artifact (newer action)
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./docs
@@ -83,6 +66,5 @@ jobs:
       pages: write
       id-token: write
     steps:
-      - name: Deploy to GitHub Pages (newer action)
-        id: deploy
+      - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
